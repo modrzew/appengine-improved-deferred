@@ -14,7 +14,10 @@ from google.appengine.ext import deferred as gae_deferred
 
 
 # How many times try to put task onto queue before giving up?
-_MAX_RETRIES = 5
+MAX_RETRIES = 5
+# Where to put the task, if taskgiver doesn't specify queue/module?
+DEFAULT_MODULE = None
+DEFAULT_QUEUE = None
 
 
 def _execute(executor, *args, **kwargs):
@@ -34,7 +37,8 @@ def _execute(executor, *args, **kwargs):
         try:
             executor(*args, **kwargs)
         except DeadlineExceededError:
-            if times_tried >= _MAX_RETRIES:
+            times_tried += 1
+            if times_tried >= MAX_RETRIES:
                 raise
             time.sleep(0.5 * times_tried)  # I know what I'm doing, trust me
             continue
@@ -50,8 +54,29 @@ def _generate_hash(args, kwargs):
     return hashlib.sha256(pickle.dumps((args, kwargs))).hexdigest()
 
 
+def deferred(identifier):
+    """Decorator for deferred functions
+
+    If function that is decorated with this is deferred with our own defer,
+    it will be enqueued using taskqueue.add and our own handler.
+
+    `identifier` will be appended to URL, allowing you to identify that task
+    in the logs.
+    """
+    def inner(func):
+        func.__deferred_identifier = identifier
+        return func
+    return inner
+
+
 def defer(func_or_path, *args, **kwargs):
-    """Defers the task in an intelligent way"""
+    """Intelligent task deferrer
+
+    You can use it as you would use deferred.defer - just pass it a function,
+    some kwargs and you're all set!
+    If function is decorated with @deferred_task, it shall be delegated using
+    taskqueue.add and DeferredHandler instead of deferred.defer.
+    """
     # If taskgiver didn't specify a name, try to guess one
     if '_name' not in kwargs:
         kwargs['_name'] = '{func_name}-{task_hash}'.format(
