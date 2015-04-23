@@ -3,7 +3,9 @@ Improved deferred library for App Engine
 
 some description here
 """
+import hashlib
 import logging
+import pickle
 import time
 
 from google.appengine.api import taskqueue
@@ -43,15 +45,20 @@ def _execute(executor, *args, **kwargs):
         break
 
 
-def _generate_name(args, kwargs):
-    """Generates unique name for given args/kwargs"""
-    return 'unique-name'  # will suffice for now
+def _generate_hash(args, kwargs):
+    """Generates hash for given args/kwargs"""
+    return hashlib.sha256(pickle.dumps((args, kwargs))).hexdigest()
 
 
 def defer(func_or_path, *args, **kwargs):
     """Defers the task in an intelligent way"""
+    # If taskgiver didn't specify a name, try to guess one
     if '_name' not in kwargs:
-        kwargs['_name'] = _generate_name(args, kwargs)
+        kwargs['_name'] = '{func_name}-{task_hash}'.format(
+            func_name='todo',
+            task_hash=_generate_hash(args, kwargs),
+        )
+    # TODO: make use of taskqueue.add
     _execute(
         gae_deferred.defer,
         func_or_path,
