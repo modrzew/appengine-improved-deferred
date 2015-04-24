@@ -54,6 +54,26 @@ def _generate_hash(args, kwargs):
     return hashlib.sha256(pickle.dumps((args, kwargs))).hexdigest()
 
 
+def _prepare_taskqueue_kwargs(path, args, kwargs):
+    """Converts deferred kwargs to taskqueue kwargs
+
+    Returns tuple: (payload, taskqueue_kwargs)
+    """
+    payload = {
+        'args': args,
+        'kwargs': kwargs,
+        'path': path,
+    }
+    taskqueue_kwargs = {}
+    # Basically, all arguments beginning with underscore should be extracted
+    for k in kwargs.keys():
+        if k == '_queue':  # ...with this slight exception
+            taskqueue_kwargs['queue_name'] = kwargs.pop(k)
+        elif k.startswith('_'):
+            taskqueue_kwargs[k] = kwargs.pop(k)
+    return payload, taskqueue_kwargs
+
+
 def deferred(identifier):
     """Decorator for deferred functions
 
@@ -69,7 +89,7 @@ def deferred(identifier):
     return inner
 
 
-def defer(func_or_path, *args, **kwargs):
+def defer(func, *args, **kwargs):
     """Intelligent task deferrer
 
     You can use it as you would use deferred.defer - just pass it a function,
@@ -83,10 +103,31 @@ def defer(func_or_path, *args, **kwargs):
             func_name='todo',
             task_hash=_generate_hash(args, kwargs),
         )
-    # TODO: make use of taskqueue.add
-    _execute(
-        gae_deferred.defer,
-        func_or_path,
-        *args,
-        **kwargs
-    )
+    # Should we use taskqueue.add?
+    if hasattr(func, '__deferred_identifier'):
+        # In order to be able to import the function later
+        path = '{module}.{function}'.format(
+            module=func.__module__,
+            function=func.__name__,
+        )
+        # taskqueue.add has slightly different interface than deferred.defer
+        payload, taskqueue_kwargs = _prepare_taskqueue_kwargs(
+            path,
+            args,
+            kwargs,
+        )
+        _execute(
+            taskqueue.add,
+            url='/deferred/',  # TODO: make use of task identifier here
+            method='POST',
+            payload=payload,
+            **taskqueue_kwargs
+        )
+    # Or deferred.defer?
+    else:
+        _execute(
+            gae_deferred.defer,
+            func,
+            *args,
+            **kwargs
+        )
