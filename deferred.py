@@ -11,6 +11,7 @@ import time
 from google.appengine.api import taskqueue
 from google.appengine.runtime.apiproxy_errors import DeadlineExceededError
 from google.appengine.ext import deferred as gae_deferred
+from webapp2 import RequestHandler
 
 
 # How many times try to put task onto queue before giving up?
@@ -74,6 +75,10 @@ def _prepare_taskqueue_kwargs(path, args, kwargs):
     return payload, taskqueue_kwargs
 
 
+class DeferredHandler(RequestHandler):
+    """Handling deferred functions in a better way"""
+
+
 def deferred(identifier):
     """Decorator for deferred functions
 
@@ -103,6 +108,11 @@ def defer(func, *args, **kwargs):
             func_name='todo',
             task_hash=_generate_hash(args, kwargs),
         )
+    # Also, take care of some default values
+    if '_queue' not in kwargs:
+        kwargs['_queue'] = DEFAULT_QUEUE
+    if '_target' not in kwargs:
+        kwargs['_target'] = DEFAULT_MODULE
     # Should we use taskqueue.add?
     if hasattr(func, '__deferred_identifier'):
         # In order to be able to import the function later
