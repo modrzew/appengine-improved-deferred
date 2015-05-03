@@ -11,7 +11,7 @@ import time
 from google.appengine.api import taskqueue
 from google.appengine.runtime.apiproxy_errors import DeadlineExceededError
 from google.appengine.ext import deferred as gae_deferred
-from webapp2 import RequestHandler
+import webapp2
 
 
 # How many times try to put task onto queue before giving up?
@@ -19,6 +19,8 @@ MAX_RETRIES = 5
 # Where to put the task, if taskgiver doesn't specify queue/module?
 DEFAULT_MODULE = None
 DEFAULT_QUEUE = None
+# Deferred handler URL
+DEFERRED_URL = '/deferred/'
 
 
 def _execute(executor, *args, **kwargs):
@@ -31,7 +33,8 @@ def _execute(executor, *args, **kwargs):
     deadline).
     It also catches two exceptions that may be raised by taskqueue:
     - TaskAlreadyExistsError (in case task is alreaady present on the queue),
-    - TombstonedTaskError (in case task was already executed).
+    - TombstonedTaskError (in case task was already executed),
+    - TaskTooLargeError (in case payload is too big).
     """
     times_tried = 0
     while True:
@@ -47,6 +50,10 @@ def _execute(executor, *args, **kwargs):
             logging.warning('Task already exists!')
         except taskqueue.TombstonedTaskError:
             logging.warning('Task tombstoned!')
+        except taskqueue.TaskTooLargeError:
+            logging.exception('Task is too large to execute!')
+            logging.debug('Args: %s', args)
+            logging.debug('Kwargs: %s', kwargs)
         break
 
 
@@ -75,8 +82,10 @@ def _prepare_taskqueue_kwargs(path, args, kwargs):
     return payload, taskqueue_kwargs
 
 
-class DeferredHandler(RequestHandler):
+class DeferredHandler(webapp2.RequestHandler):
     """Handling deferred functions in a better way"""
+    def post(self, identifier):
+        pass
 
 
 def deferred(identifier):
@@ -102,6 +111,7 @@ def defer(func, *args, **kwargs):
     If function is decorated with @deferred_task, it shall be delegated using
     taskqueue.add and DeferredHandler instead of deferred.defer.
     """
+    identifier = func.__deferred_identifier
     # If taskgiver didn't specify a name, try to guess one
     if '_name' not in kwargs:
         kwargs['_name'] = '{func_name}-{task_hash}'.format(
@@ -128,7 +138,7 @@ def defer(func, *args, **kwargs):
         )
         _execute(
             taskqueue.add,
-            url='/deferred/',  # TODO: make use of task identifier here
+            url=DEFERRED_URL % identifier,
             method='POST',
             payload=payload,
             **taskqueue_kwargs
@@ -141,3 +151,10 @@ def defer(func, *args, **kwargs):
             *args,
             **kwargs
         )
+
+
+# webapp2 route definition - so you can just import it from here
+ROUTE = webapp2.Route(
+    DEFERRED_URL % '<identifier:.+>',
+    DeferredHandler,
+)
