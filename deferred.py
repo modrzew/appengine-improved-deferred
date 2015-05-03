@@ -82,10 +82,37 @@ def _prepare_taskqueue_kwargs(path, args, kwargs):
     return payload, taskqueue_kwargs
 
 
+class InvalidPath(Exception):
+    """Raised when there's something wrong with import path"""
+
+
+def _load(path):
+    """Loads function lazily based on the import path
+
+    Supports loading:
+    - standalone functions,
+    - class/static methods.
+    """
+    def some_function(*args, **kwargs):
+        pass
+    return some_function
+
+
 class DeferredHandler(webapp2.RequestHandler):
     """Handling deferred functions in a better way"""
     def post(self, identifier):
-        pass
+        unpickled = pickle.loads(self.request.body)
+        args = unpickled.get('args', ())
+        kwargs = unpickled.get('kwargs', {})
+        path = unpickled.get('path')
+        if not path:
+            raise self.abort(400, 'No path')
+        try:
+            function = _load(path)
+        except InvalidPath as e:
+            raise self.abort(400, 'Invalid path: %s' % e.message)
+        function(*args, **kwargs)
+        self.response.status = 200
 
 
 def deferred(identifier):
@@ -140,7 +167,7 @@ def defer(func, *args, **kwargs):
             taskqueue.add,
             url=DEFERRED_URL % identifier,
             method='POST',
-            payload=payload,
+            payload=pickle.dumps(payload),
             **taskqueue_kwargs
         )
     # Or deferred.defer?
