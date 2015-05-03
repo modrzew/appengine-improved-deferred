@@ -5,6 +5,7 @@ some description here
 """
 import hashlib
 import logging
+import importlib
 import pickle
 import time
 
@@ -93,9 +94,24 @@ def _load(path):
     - standalone functions,
     - class/static methods.
     """
-    def some_function(*args, **kwargs):
-        pass
-    return some_function
+    callable = None
+    module_path = path
+    function_path = []
+    while True:
+        module_path, function_part = path.rsplit('.', 1)
+        try:
+            callable = importlib.import_module(module_path)
+        except ImportError:
+            function_path.insert(0, function_part)
+        else:
+            break
+    if not callable:
+        raise InvalidPath('Cannot import module')
+    for segment in function_path:
+        callable = getattr(callable, segment, None)
+        if not callable:
+            raise InvalidPath('Cannot get to function %s' % segment)
+    return callable
 
 
 class DeferredHandler(webapp2.RequestHandler):
@@ -105,6 +121,9 @@ class DeferredHandler(webapp2.RequestHandler):
         args = unpickled.get('args', ())
         kwargs = unpickled.get('kwargs', {})
         path = unpickled.get('path')
+        logging.debug('Args: %s', args)
+        logging.debug('Kwargs: %s', kwargs)
+        logging.debug('Path: %s', path)
         if not path:
             raise self.abort(400, 'No path')
         try:
