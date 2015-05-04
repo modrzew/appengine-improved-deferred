@@ -1,6 +1,8 @@
 import hashlib
+import pickle
 import unittest
 
+import mock
 import pytest
 
 from google.appengine.api import taskqueue
@@ -14,6 +16,7 @@ class Parent(object):
         @staticmethod
         def function():
             pass
+
     @classmethod
     def function(cls):
         pass
@@ -51,11 +54,10 @@ class LoadTests(unittest.TestCase):
 
 class GenerateHashTests(unittest.TestCase):
     def test_ok(self):
-        args = (1, 2, 'some', 'thing', Parent.function)
+        args = (1, 2, 'some', 'thing')
         kwargs = {
             'another': 'thing',
             'value': 42,
-            'inner': Parent.Inner,
         }
         expected = hashlib.sha256(pickle.dumps((args, kwargs))).hexdigest()
         result = deferred._generate_hash(args, kwargs)
@@ -88,10 +90,10 @@ class ExecuteTests(unittest.TestCase):
         self.executor.side_effect = [DeadlineExceededError] * 6
         with pytest.raises(DeadlineExceededError):
             deferred._execute(self.executor, 1, 2, 'a', 'mama', some='thing')
-        assert self.executor.call_count == 6
+        assert self.executor.call_count == 5
 
     @mock.patch.object(deferred, 'MAX_RETRIES', 5)
-    @mock.patch(deferred, 'logging')
+    @mock.patch.object(deferred, 'logging')
     def test_already_exists(self, m_l):
         error = taskqueue.TaskAlreadyExistsError
         self.executor.side_effect = [DeadlineExceededError] * 3 + [error]
@@ -99,9 +101,8 @@ class ExecuteTests(unittest.TestCase):
         assert self.executor.call_count == 4
         assert m_l.warning.called
 
-
     @mock.patch.object(deferred, 'MAX_RETRIES', 5)
-    @mock.patch(deferred, 'logging')
+    @mock.patch.object(deferred, 'logging')
     def test_tombstoned(self, m_l):
         error = taskqueue.TombstonedTaskError
         self.executor.side_effect = [DeadlineExceededError] * 3 + [error]
@@ -110,7 +111,7 @@ class ExecuteTests(unittest.TestCase):
         assert m_l.warning.called
 
     @mock.patch.object(deferred, 'MAX_RETRIES', 5)
-    @mock.patch(deferred, 'logging')
+    @mock.patch.object(deferred, 'logging')
     def test_too_large(self, m_l):
         error = taskqueue.TaskTooLargeError
         self.executor.side_effect = [DeadlineExceededError] * 3 + [error]

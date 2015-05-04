@@ -21,7 +21,7 @@ MAX_RETRIES = 5
 DEFAULT_MODULE = None
 DEFAULT_QUEUE = None
 # Deferred handler URL
-DEFERRED_URL = '/deferred/'
+DEFERRED_URL = '/deferred/%s'
 
 
 def _execute(executor, *args, **kwargs):
