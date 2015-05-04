@@ -33,7 +33,7 @@ class LoadTests(unittest.TestCase):
 
     def test_classmethod(self):
         func = deferred._load('tests.Parent.function')
-        assert func is Parent.function
+        assert func.__code__.co_code == Parent.function.__code__.co_code
 
     def test_inner_classmethod(self):
         func = deferred._load('tests.Parent.Inner.function')
@@ -64,6 +64,7 @@ class GenerateHashTests(unittest.TestCase):
         assert result == expected
 
 
+@mock.patch.object(deferred.time, 'sleep', mock.MagicMock())
 class ExecuteTests(unittest.TestCase):
     def setUp(self):
         super(ExecuteTests, self).setUp()
