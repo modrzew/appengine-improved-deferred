@@ -94,24 +94,29 @@ def _load(path):
     - standalone functions,
     - class/static methods.
     """
-    callable = None
+    current = None
     module_path = path
     function_path = []
+    if '.' not in module_path:
+        raise InvalidPath('No . found in the path')
     while True:
-        module_path, function_part = path.rsplit('.', 1)
+        module_path, function_part = module_path.rsplit('.', 1)
+        if not module_path:
+            raise InvalidPath('Cannot import module')
+        function_path.insert(0, function_part)
         try:
-            callable = importlib.import_module(module_path)
+            current = importlib.import_module(module_path)
         except ImportError:
-            function_path.insert(0, function_part)
+            pass
         else:
             break
-    if not callable:
+    if not current:
         raise InvalidPath('Cannot import module')
     for segment in function_path:
-        callable = getattr(callable, segment, None)
-        if not callable:
+        current = getattr(current, segment, None)
+        if not current:
             raise InvalidPath('Cannot get to function %s' % segment)
-    return callable
+    return current
 
 
 class DeferredHandler(webapp2.RequestHandler):

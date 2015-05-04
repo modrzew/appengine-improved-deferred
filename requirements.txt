@@ -1,0 +1,4 @@
+mock==1.0.1
+py==1.4.26
+pytest==2.7.0
+-e git+https://github.com/MiCHiLU/pytest_gae.git@c9567496d7bfa4c6c3fa02e7aa0771b28c272269#egg=pytest_gae-master
