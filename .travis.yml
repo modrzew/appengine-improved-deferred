@@ -1,12 +1,8 @@
 language: python
 python: 2.7
 install:
-  - pip install -r requirements.txt
-  - wget -O google_appengine.zip https://storage.googleapis.com/appengine-sdks/featured/google_appengine_1.9.19.zip
-  - unzip -q google_appengine.zip
-before_script:
-  - touch app.yaml
+  - pip install tox
 script:
-  - py.test . --with-gae --gae-path=./google_appengine --cov . --cov-report term-missing --pep8
+  - tox
 after_success:
   - coveralls
