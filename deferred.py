@@ -60,7 +60,7 @@ def _execute(executor, *args, **kwargs):
 
 def _generate_hash(args, kwargs):
     """Generates hash for given args/kwargs"""
-    return hashlib.sha256(pickle.dumps((args, kwargs))).hexdigest()
+    return hashlib.md5(pickle.dumps((args, kwargs))).hexdigest()
 
 
 def _prepare_taskqueue_kwargs(path, args, kwargs):
@@ -160,11 +160,11 @@ def defer(func, *args, **kwargs):
     If function is decorated with @deferred_task, it shall be delegated using
     taskqueue.add and DeferredHandler instead of deferred.defer.
     """
-    identifier = func.__deferred_identifier
+    identifier = getattr(func, '__deferred_identifier', None)
     # If taskgiver didn't specify a name, try to guess one
     if '_name' not in kwargs:
         kwargs['_name'] = '{func_name}-{task_hash}'.format(
-            func_name='todo',
+            func_name=func.__name__,
             task_hash=_generate_hash(args, kwargs),
         )
     # Also, take care of some default values
@@ -173,7 +173,7 @@ def defer(func, *args, **kwargs):
     if '_target' not in kwargs:
         kwargs['_target'] = DEFAULT_MODULE
     # Should we use taskqueue.add?
-    if hasattr(func, '__deferred_identifier'):
+    if identifier:
         # In order to be able to import the function later
         path = '{module}.{function}'.format(
             module=func.__module__,

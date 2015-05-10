@@ -67,7 +67,7 @@ class GenerateHashTests(unittest.TestCase):
             'another': 'thing',
             'value': 42,
         }
-        expected = hashlib.sha256(pickle.dumps((args, kwargs))).hexdigest()
+        expected = hashlib.md5(pickle.dumps((args, kwargs))).hexdigest()
         result = deferred._generate_hash(args, kwargs)
         assert result == expected
 
@@ -190,3 +190,93 @@ class DecoratorTests(unittest.TestCase):
         identifier = getattr(function, '__deferred_identifier')
         assert identifier == '/some/path/'
         assert function() == 123
+
+
+class DeferTests(unittest.TestCase):
+    def setUp(self):
+        super(DeferTests, self).setUp()
+        self.patches = (
+            mock.patch.object(deferred.taskqueue, 'add'),
+            mock.patch.object(deferred.gae_deferred, 'defer'),
+            mock.patch.object(deferred, 'DEFAULT_MODULE', 'somemodule'),
+            mock.patch.object(deferred, 'DEFAULT_QUEUE', 'somequeue'),
+        )
+        self.taskqueue, self.defer, _, _ = [p.start() for p in self.patches]
+
+    def tearDown(self):
+        super(DeferTests, self).tearDown()
+        for patcher in self.patches:
+            patcher.stop()
+
+    def test_defer(self):
+        deferred.defer(top_level_function)
+        assert not self.taskqueue.called
+        self.defer.assert_called_once_with(
+            top_level_function,
+            _name=mock.ANY,
+            _queue='somequeue',
+            _target='somemodule',
+        )
+
+    def test_non_default_queue(self):
+        deferred.defer(top_level_function, _queue='differentqueue')
+        assert not self.taskqueue.called
+        self.defer.assert_called_once_with(
+            top_level_function,
+            _name=mock.ANY,
+            _queue='differentqueue',
+            _target='somemodule',
+        )
+
+    def test_non_default_target(self):
+        deferred.defer(top_level_function, _target='differentmodule')
+        assert not self.taskqueue.called
+        self.defer.assert_called_once_with(
+            top_level_function,
+            _name=mock.ANY,
+            _queue='somequeue',
+            _target='differentmodule',
+        )
+
+    def test_name_given(self):
+        deferred.defer(top_level_function, _name='taskname')
+        assert not self.taskqueue.called
+        self.defer.assert_called_once_with(
+            top_level_function,
+            _name='taskname',
+            _queue='somequeue',
+            _target='somemodule',
+        )
+
+    def test_name_random(self):
+        deferred.defer(top_level_function)
+        assert not self.taskqueue.called
+        name = self.defer.call_args[1]['_name']
+        assert name.startswith('top_level_function-')
+        assert len(name) == (len('top_level_function-') + 32)
+
+    @mock.patch.object(deferred, 'DEFERRED_URL', '/defer/%s')
+    def test_taskqueue(self):
+        decorated = deferred.deferred('some/path')(top_level_function)
+        deferred.defer(decorated)
+        assert not self.defer.called
+        assert self.taskqueue.called
+        kwargs = self.taskqueue.call_args[1]
+        assert kwargs['url'] == '/defer/some/path'
+        assert kwargs['method'] == 'POST'
+        assert kwargs['payload']
+        assert kwargs['queue_name'] == 'somequeue'
+        assert kwargs['_target'] == 'somemodule'
+
+    @mock.patch.object(deferred, 'DEFERRED_URL', '/defer/%s')
+    def test_taskqueue_params(self):
+        decorated = deferred.deferred('some/path')(top_level_function)
+        deferred.defer(decorated, _target='othermodule', _queue='otherqueue')
+        assert not self.defer.called
+        assert self.taskqueue.called
+        kwargs = self.taskqueue.call_args[1]
+        assert kwargs['url'] == '/defer/some/path'
+        assert kwargs['method'] == 'POST'
+        assert kwargs['payload']
+        assert kwargs['queue_name'] == 'otherqueue'
+        assert kwargs['_target'] == 'othermodule'
