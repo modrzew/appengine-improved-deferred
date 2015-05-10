@@ -28,6 +28,9 @@ def top_level_function():
     pass
 
 
+TLF_MOCK = mock.MagicMock()
+
+
 class LoadTests(unittest.TestCase):
     def test_top_level(self):
         func = deferred._load('tests.top_level_function')
@@ -307,3 +310,15 @@ class HandlerTests(unittest.TestCase):
     def test_invalid_path(self):
         payload = pickle.dumps({'path': 'not.a.function'})
         self.app.post('/deferred/something', payload, status=400)
+
+    @mock.patch.dict(globals(), {'top_level_function': TLF_MOCK})
+    def test_ok(self):
+        payload = pickle.dumps({
+            'path': 'tests.top_level_function',
+            'args': (1, 2),
+            'kwargs': {
+                'some': 'thing',
+            },
+        })
+        self.app.post('/deferred/something', payload)
+        TLF_MOCK.assert_called_once_with(1, 2, some='thing')
