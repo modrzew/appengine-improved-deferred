@@ -97,12 +97,10 @@ def _load(path):
     current = None
     module_path = path
     function_path = []
-    if '.' not in module_path:
-        raise InvalidPath('No . found in the path')
     while module_path:
+        if '.' not in module_path:
+            raise InvalidPath('No . found in the path')
         module_path, function_part = module_path.rsplit('.', 1)
-        if not module_path:
-            raise InvalidPath('Cannot import module')
         function_path.insert(0, function_part)
         try:
             current = importlib.import_module(module_path)

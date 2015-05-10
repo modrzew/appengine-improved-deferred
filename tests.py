@@ -43,6 +43,10 @@ class LoadTests(unittest.TestCase):
         with pytest.raises(deferred.InvalidPath):
             deferred._load('some_module')
 
+    def test_no_module_nested(self):
+        with pytest.raises(deferred.InvalidPath):
+            deferred._load('some.module.function')
+
     def test_no_module_attribute(self):
         with pytest.raises(deferred.InvalidPath):
             deferred._load('tests.something_nonexistent')
@@ -50,6 +54,10 @@ class LoadTests(unittest.TestCase):
     def test_no_class_attribute(self):
         with pytest.raises(deferred.InvalidPath):
             deferred._load('tests.Parent.nonexistent')
+
+    def test_empty(self):
+        with pytest.raises(deferred.InvalidPath):
+            deferred._load('')
 
 
 class GenerateHashTests(unittest.TestCase):
@@ -172,3 +180,13 @@ class PrepareTaskqueueKwargsTests(unittest.TestCase):
                 '3': 5,
             },
         }
+
+
+class DecoratorTests(unittest.TestCase):
+    def test_ok(self):
+        @deferred.deferred('/some/path/')
+        def function():
+            return 123
+        identifier = getattr(function, '__deferred_identifier')
+        assert identifier == '/some/path/'
+        assert function() == 123
