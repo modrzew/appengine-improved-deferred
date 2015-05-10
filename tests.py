@@ -4,9 +4,11 @@ import unittest
 
 import mock
 import pytest
+import webtest
 
 from google.appengine.api import taskqueue
 from google.appengine.runtime.apiproxy_errors import DeadlineExceededError
+import webapp2
 
 import deferred
 
@@ -280,3 +282,28 @@ class DeferTests(unittest.TestCase):
         assert kwargs['payload']
         assert kwargs['queue_name'] == 'otherqueue'
         assert kwargs['_target'] == 'othermodule'
+
+
+@mock.patch.object(deferred, 'DEFERRED_URL', '/deferred/%s')
+class HandlerTests(unittest.TestCase):
+    def setUp(self):
+        super(HandlerTests, self).setUp()
+        app = webapp2.WSGIApplication(
+            routes=[deferred.ROUTE],
+            config={},
+        )
+        self.app = webtest.TestApp(app)
+
+    def test_missing_body(self):
+        self.app.post('/deferred/something', status=400)
+
+    def test_unpickleable(self):
+        self.app.post('/deferred/something', 'not a pickle', status=400)
+
+    def test_missing_path(self):
+        payload = pickle.dumps({})
+        self.app.post('/deferred/something', payload, status=400)
+
+    def test_invalid_path(self):
+        payload = pickle.dumps({'path': 'not.a.function'})
+        self.app.post('/deferred/something', payload, status=400)

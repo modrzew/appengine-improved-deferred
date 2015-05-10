@@ -120,7 +120,13 @@ def _load(path):
 class DeferredHandler(webapp2.RequestHandler):
     """Handling deferred functions in a better way"""
     def post(self, identifier):
-        unpickled = pickle.loads(self.request.body)
+        if not self.request.body:
+            raise self.abort(400, 'Missing request body')
+        try:
+            unpickled = pickle.loads(self.request.body)
+        except Exception as e:
+            logging.exception('Unable to unpickle')
+            raise self.abort(400, 'Unable to unpickle')
         args = unpickled.get('args', ())
         kwargs = unpickled.get('kwargs', {})
         path = unpickled.get('path')
