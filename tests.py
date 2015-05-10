@@ -119,3 +119,56 @@ class ExecuteTests(unittest.TestCase):
         deferred._execute(self.executor, 1, 2, 'a', 'mama', some='thing')
         assert self.executor.call_count == 4
         assert m_l.exception.called
+
+
+class PrepareTaskqueueKwargsTests(unittest.TestCase):
+    def test_normal(self):
+        payload, taskqueue_kwargs = deferred._prepare_taskqueue_kwargs(
+            '/some/path',
+            (1, 2, 'a', 'c'),
+            {
+                'some': 'thing',
+                'other': 'thing',
+                '3': 5,
+            },
+        )
+        assert taskqueue_kwargs == {}
+        assert payload == {
+            'path': '/some/path',
+            'args': (1, 2, 'a', 'c'),
+            'kwargs': {
+                'some': 'thing',
+                'other': 'thing',
+                '3': 5,
+            },
+        }
+
+    def test_taskqueue_kwargs(self):
+        payload, taskqueue_kwargs = deferred._prepare_taskqueue_kwargs(
+            '/some/path',
+            (1, 2, 'a', 'c'),
+            {
+                'some': 'thing',
+                'other': 'thing',
+                '3': 5,
+                '_some_arg': 'something',
+                '_queue': 'not-default',
+                '_target': 'mymodule',
+                '_countdown': 120,
+            },
+        )
+        assert taskqueue_kwargs == {
+            '_some_arg': 'something',
+            'queue_name': 'not-default',
+            '_target': 'mymodule',
+            '_countdown': 120,
+        }
+        assert payload == {
+            'path': '/some/path',
+            'args': (1, 2, 'a', 'c'),
+            'kwargs': {
+                'some': 'thing',
+                'other': 'thing',
+                '3': 5,
+            },
+        }

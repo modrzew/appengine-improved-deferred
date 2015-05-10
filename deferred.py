@@ -99,7 +99,7 @@ def _load(path):
     function_path = []
     if '.' not in module_path:
         raise InvalidPath('No . found in the path')
-    while True:
+    while module_path:
         module_path, function_part = module_path.rsplit('.', 1)
         if not module_path:
             raise InvalidPath('Cannot import module')
