@@ -1,4 +1,6 @@
 [run]
 omit =
     tests.py
+    setup.py
     google_appengine/*
+    .tox/*
